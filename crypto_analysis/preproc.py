@@ -25,6 +25,17 @@ files = ['Price.csv', 'Volume.csv', 'Daily Active Addresses.csv',
          'Whales Transactions 100K+.csv',
          'Whale Transactions 1M +.csv'
          ]
+'''
+'Price.csv', 'Volume.csv', 'Daily Active Addresses.csv',
+         'Network Growth.csv', 'Transaction Volume USD.csv',
+         'Velocity.csv', 'Average Fees USD.csv',
+         'Dev Activity Contributors Count.csv',
+         'Development Activity.csv',
+         'Social Dominance.csv', 'Social Volume.csv',
+         'Twitter Followers.csv', 'Weighted Sentiment.csv',
+         'Whales Transactions 100K+.csv',
+         'Whale Transactions 1M +.csv'
+'''
 
 # LocalPath
 LOCAL_PATH='raw_data/data.csv'
@@ -81,6 +92,8 @@ def storage_upload(data=BUCKET_FOLDER, bucket=BUCKET_NAME):
     storage_location = "{}/{}".format(data, "data.csv")
     blob = client.blob(storage_location)
     blob.upload_from_filename(os.path.join('..','raw_data', 'data.csv'))
+
+
 
 if __name__ == '__main__':
     data = data_fromcsv()
