@@ -30,3 +30,4 @@ termcolor
 prophet
 datetime
 pytz
+tensorflow

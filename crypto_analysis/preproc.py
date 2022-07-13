@@ -25,35 +25,22 @@ files = ['Price.csv', 'Volume.csv', 'Daily Active Addresses.csv',
          'Whales Transactions 100K+.csv',
          'Whale Transactions 1M +.csv'
          ]
-'''
-'Price.csv', 'Volume.csv', 'Daily Active Addresses.csv',
-         'Network Growth.csv', 'Transaction Volume USD.csv',
-         'Velocity.csv', 'Average Fees USD.csv',
-         'Dev Activity Contributors Count.csv',
-         'Development Activity.csv',
-         'Social Dominance.csv', 'Social Volume.csv',
-         'Twitter Followers.csv', 'Weighted Sentiment.csv',
-         'Whales Transactions 100K+.csv',
-         'Whale Transactions 1M +.csv'
-'''
 
 # LocalPath
 LOCAL_PATH='raw_data/data.csv'
-
 # project id
 PROJECT_ID='lewagon-913-crypto-analysis'
-
 # bucket name
 BUCKET_NAME='crypto913'
-
-# bucket directory in which to store the uploaded file (we choose to name this data as a convention)
+# bucket directory in which to store the uploaded file
+# (we choose to name this data as a convention)
 BUCKET_FOLDER='data'
-
 REGION='europe-west1'
 
 def data_fromcsv():
     '''Function that read the selected csv files
-    and return the merge of them'''
+    and save the merge of them into raw_data/data.csv
+    and return data dataset'''
 
     dataset_1 = pd.read_csv(os.path.join('..','raw_data', 'Price.csv'))
     dataset_2 = pd.read_csv(os.path.join('..','raw_data', 'Volume.csv'))
@@ -71,7 +58,7 @@ def data_fromcsv():
     dataset_14 = pd.read_csv(os.path.join('..','raw_data', 'Whales Transactions 100K+.csv'))
     dataset_15 = pd.read_csv(os.path.join('..','raw_data', 'Whale Transactions 1M +.csv'))
 
-    return pd.merge(dataset_1, dataset_2).merge(dataset_3).merge(
+    data = pd.merge(dataset_1, dataset_2).merge(dataset_3).merge(
                 dataset_4).merge(dataset_5).merge(
                     dataset_6).merge(dataset_7).merge(
                         dataset_8).merge(dataset_9).merge(
@@ -79,25 +66,29 @@ def data_fromcsv():
                                 dataset_12).merge(
                                     dataset_13).merge(
                                         dataset_14).merge(dataset_15)
-
-def export_datacsv():
-    data = data_fromcsv()
     data.to_csv(os.path.join('..','raw_data', 'data.csv'))
+    return data
 
-# def upload_datacsv():
-#     data.to_csv(f"gs://{BUCKET_NAME}/{BUCKET_FOLDER}")
+
+# def export_datacsv():
+#     '''
+#     Function that create data.csv file into raw_data folder
+#     '''
+#     data = data_fromcsv()
+#     data.to_csv(os.path.join('..','raw_data', 'data.csv'))
 
 def storage_upload(data=BUCKET_FOLDER, bucket=BUCKET_NAME):
+    '''
+    Perform the upload of data.csv into the bucket folder of the gcp project
+    '''
     client = storage.Client().bucket(bucket)
     storage_location = "{}/{}".format(data, "data.csv")
     blob = client.blob(storage_location)
     blob.upload_from_filename(os.path.join('..','raw_data', 'data.csv'))
 
 
-
 if __name__ == '__main__':
     data = data_fromcsv()
-    export_datacsv()
     storage_upload()
     print(data.head())
     print(data.isnull().sum().sort_values(ascending=False))
