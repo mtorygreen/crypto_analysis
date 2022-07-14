@@ -32,3 +32,6 @@ datetime
 pytz
 tensorflow
 joblib
+sanpy
+yfinance
+requests
