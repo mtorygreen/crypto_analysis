@@ -7,6 +7,8 @@ from tensorflow.keras.layers.experimental.preprocessing import Normalization
 from tensorflow.keras.optimizers import RMSprop
 from tensorflow.keras.metrics import MAPE
 from tensorflow.keras import callbacks
+from google.cloud import storage
+import joblib
 
 
 def subsample_sequence(df, length):
@@ -73,6 +75,7 @@ def padding_seq(train):
 def baseline_model(X_train_pad, y_train):
     '''
     function that return a trained baseline model and its fitting history
+    and save locally the trained model file basemodel.joblib
     '''
     normalizer = Normalization()
     normalizer.adapt(X_train_pad)
@@ -91,6 +94,7 @@ def baseline_model(X_train_pad, y_train):
                 validation_split=0.3,
                 callbacks=[es],
                 verbose=1)
+    joblib.dump(model, 'basemodel.joblib')
     return model, history
 
 def plot_history(history, title='', axs=None, exp_name=""):
@@ -123,8 +127,28 @@ def pred_3d_price(model, test):
     '''
     return model.predict(test)
 
+# PARAMETERS FOR GCP BASEMODEL UPLOAD
+
+STORAGE_LOCATION = 'models/basemodel.joblib'
+BUCKET_NAME='crypto913'
+
+def upload_model_to_gcp():
+    '''
+    function that upload the trained model to gcp
+    '''
+    client = storage.Client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(STORAGE_LOCATION)
+    blob.upload_from_filename('basemodel.joblib')
+
 if __name__ == '__main__':
-    data_dl = pd.read_csv('../raw_data/data.csv')
+    # download the data.csv from gc storage to test the code in gc ai
+    client = storage.Client()
+    bucket = client.get_bucket(BUCKET_NAME)
+    blob = bucket.get_blob("data/data.csv")
+    blob.download_to_filename("/tmp/data.csv")
+    #data_dl = pd.read_csv('raw_data/data.csv') # TO RUN LOCALLY
+    data_dl = pd.read_csv('/tmp/data.csv')
     data_dl['Date'] = pd.to_datetime(data_dl['Date'])
     data_dl.set_index('Date', inplace=True)
     data_dl.drop(columns='Unnamed: 0', inplace=True)
@@ -135,4 +159,5 @@ if __name__ == '__main__':
     model, history = baseline_model(X_train_pad, y_train)
     X_predict = data_dl.tail(80)
     y_pred = pred_3d_price(model, X_predict)
+    upload_model_to_gcp()
     print(y_pred)
