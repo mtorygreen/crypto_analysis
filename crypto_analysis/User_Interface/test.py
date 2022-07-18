@@ -5,6 +5,8 @@ from plotly import graph_objs as go
 import pandas as pd
 import numpy as np
 import san
+from get_data import load_data
+
 
 #testing out
 import altair as alt
@@ -34,57 +36,28 @@ crypto_currencies=('ethereum', 'bitcoin', 'tether')
 
 #selected_currency=st.selectbox('Select dataset for prediction', crypto_currencies)
 
-@st.experimental_memo
-@st.cache
+# All the data from different sources in one DataFrame
+df = load_data()
 
-def load_data():
-    data = pd.read_csv('data_advanced.csv') #(n_rows =n_rows))
-    data.reset_index(inplace=True)
-    return data
-# Original time series chart. Omitted `get_chart` for clarity
+#my_expander = st.expander(#)
+#my_expander.write(df.head(n=10))
+#clicked = my_expander.button('Show raw data')
 
 
-
-#data_load_state = st.text('Load data...')
-data = load_data()
-#data_load_state.text('Loading data...done!')
-
-#chart = get_chart(data)
 
 
 # Plot Graph
 def plot_raw_data():
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=data['datetime'], y=data['price_usd']))
+    fig.add_trace(go.Scatter(x=df['datetime'], y=df['price_usd']))
     fig.layout.update(title_text='Time Series Ethereum Price', xaxis_rangeslider_visible=True)
     st.plotly_chart(fig)
 
-chart = plot_raw_data()
+plot_raw_data()
 
 
-# Input annotations
-ANNOTATIONS = [
-    ("2017-07-21", "Pretty good day for GOOG"),
-    ("2022-07-14", "Something's going wrong for GOOG & AAPL"),
-]
 
-# Create a chart with annotations
-annotations_df = pd.DataFrame(ANNOTATIONS, columns=["date", "event"])
-annotations_df.date = pd.to_datetime(annotations_df.date)
-annotations_df["y"] = 0
-annotation_layer = (
-    alt.Chart(annotations_df)
-    .mark_text(size=15, text="⬇", dx=0, dy=-10, align="center")
-    .encode(
-        x="date:T",
-        y=alt.Y("y:Q"),
-        tooltip=["event"],
-    )
-    .interactive()
-)
 
-# Display both charts together
-st.altair_chart((chart + annotation_layer).interactive(), use_container_width=True)
 
 
 
@@ -100,7 +73,7 @@ col3.metric(label="In Three Days", value="$1.109,67", delta="- 0.01", delta_colo
 
 
 st.subheader('Raw data')
-st.write(data.tail())
+st.write(df.tail())
 
 if __name__ == "__main__":
     data = load_data()
