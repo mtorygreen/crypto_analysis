@@ -68,7 +68,7 @@ BUCKET_NAME=crypto913
 BUCKET_FOLDER=data
 BUCKET_TRAINING_FOLDER=trainings
 PACKAGE_NAME=crypto_analysis
-FILENAME=baseline
+FILENAME=trainer_advanced
 PYTHON_VERSION=3.7
 RUNTIME_VERSION=2.8
 
@@ -76,7 +76,7 @@ RUNTIME_VERSION=2.8
 # BUCKET_FILE_NAME=another_file_name_if_I_so_desire.csv
 BUCKET_FILE_NAME=$(shell basename ${LOCAL_PATH})
 
-REGION=europe-west1
+REGION=europe-west4
 
 JOB_NAME=crypto_baseline_$(shell date +'%Y%m%d_%H%M%S')
 
@@ -97,6 +97,7 @@ gcp_submit_training:
 		--module-name ${PACKAGE_NAME}.${FILENAME} \
 		--python-version=${PYTHON_VERSION} \
 		--runtime-version=${RUNTIME_VERSION} \
+		--scale-tier=BASIC_TPU \
 		--region ${REGION} \
 		--stream-logs
 
