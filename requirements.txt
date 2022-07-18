@@ -35,3 +35,4 @@ joblib
 sanpy
 yfinance
 requests
+san
