@@ -5,7 +5,6 @@ import san
 from datetime import  datetime
 import requests
 
-
 def load_data_stocks(ticker=None, timeframe='5y'):
     '''
     This function loads stocks data per API call.
@@ -28,7 +27,7 @@ def load_data_sanbase(year=10, days=365, tketh = 'ethereum', tkbtc = 'bitcoin'):
     This function loads sanbase data per API call.
     '''
 
-    san.ApiConfig.api_key = '3e4ne7awzdf2yy65_v7liam22jvyryahn'
+    san.ApiConfig.api_key = ''
 
     future_metrics = ['whale_transaction_count_100k_usd_to_inf_change_1d',
                     'whale_transaction_count_1m_usd_to_inf_change_30d']
@@ -243,11 +242,7 @@ def load_data():
     df.to_csv('raw_data/data_advanced_v2_fromgetdata.csv')
     return df
 
-
-
-
 if __name__ == "__main__":
-
     timeframe = '5y'
     stocks = ('^GSPC', '^IXIC', '000001.SS', '^N100', '^NDX')
     df_stocks = load_data_stocks(ticker=stocks)
