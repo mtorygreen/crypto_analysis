@@ -48,7 +48,7 @@ class Trainer():
         self.train_splits = 10000
         self.train_time_max = self.memory
 
-        self.rnn_layer1 = 300
+        self.rnn_layer1 = 500
         self.dense_layer1 = 100
         self.dense_layer2 = 20
         self.dense_output = 1                #OK 1
@@ -56,7 +56,7 @@ class Trainer():
         self.compile_loss = 'mse'            #OK mse
         self.compile_learning_rate = 0.0001  #0.00001 OK but slow improvement for each bach
         self.es_patience = 100               #OK 100
-        self.fit_epochs = 1                  #OK 3000 - 5000
+        self.fit_epochs = 500                #OK 3000 - 5000
         self.fit_bach_size = 8               #OK 16 32
         self.fit_validation_split = 0.3      #OK 0.3
 
@@ -181,7 +181,7 @@ class Trainer():
                     callbacks=[es],
                     verbose=1)
         joblib.dump(self.model, f'model_{date}.joblib')
-        joblib.dump(self.history, f'history_{date}.joblib')
+        joblib.dump(self.history, f'/tmp/history_{date}.joblib')
 
         # Log the memory lenght decided
         self.mlflow_log_param("memory", self.memory)
@@ -292,7 +292,12 @@ class Trainer():
         bucket = client.bucket(BUCKET_NAME)
         blob = bucket.blob(STORAGE_LOCATION)
         blob.upload_from_filename(f'model_{date}.joblib')
-        blob.upload_from_filename(f'history_{date}.joblib')
+        print('model saved on gcp storage')
+        client_hst = storage.Client()
+        bucket_hst = client_hst.bucket(BUCKET_NAME)
+        blob_hst = bucket_hst.blob(STORAGE_LOCATION)
+        blob_hst.upload_from_filename(f'/tmp/history_{date}.joblib')
+        print('history saved on gcp storage')
 
     @memoized_property
     def mlflow_client(self):

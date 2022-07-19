@@ -97,9 +97,28 @@ gcp_submit_training:
 		--module-name ${PACKAGE_NAME}.${FILENAME} \
 		--python-version=${PYTHON_VERSION} \
 		--runtime-version=${RUNTIME_VERSION} \
-		--scale-tier=BASIC_TPU \
 		--region ${REGION} \
 		--stream-logs
 
 run_locally:
 	@python -m ${PACKAGE_NAME}.${FILENAME}
+
+
+#--scale-tier=BASIC_TPU \
+
+# ----------------------------------
+#         HEROKU COMMANDS
+# ----------------------------------
+
+streamlit:
+	-@streamlit run app.py
+
+heroku_login:
+	-@heroku login
+
+heroku_create_app:
+	-@heroku create ${APP_NAME}
+
+deploy_heroku:
+	-@git push heroku master
+	-@heroku ps:scale web=1
