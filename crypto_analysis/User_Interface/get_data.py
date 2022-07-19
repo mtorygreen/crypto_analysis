@@ -134,8 +134,8 @@ def load_defillama_data(url_total_TVL = 'https://api.llama.fi/charts', url_eth_T
     return df_tvl
 
 # Path finden (os.path.join)
-def load_cryptoslam_data(eth_NFT_sales = pd.read_csv('ETH NFT Sales.csv'),
-                        total_NFT_sales = pd.read_csv('Total NFT Sales.csv')):
+def load_cryptoslam_data(eth_NFT_sales = pd.read_csv('raw_data/ETH NFT Sales.csv'),
+                        total_NFT_sales = pd.read_csv('raw_data/Total NFT Sales.csv')):
 
     '''
     Loading data from Cryptoslam from a CSV files
@@ -153,7 +153,17 @@ def load_etherscan_data():
     '''
     Loading Daily transaction via csv
     '''
-    daily_transactions = pd.read_csv('Daily Transactions_7.15.22.csv')
+    try:
+        from urllib.request import Request, urlopen  # Python 3
+    except ImportError:
+        from urllib2 import Request, urlopen  # Python 2
+
+    req = Request("https://etherscan.io/chart/tx?output=csv")
+    req.add_header('User-Agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0')
+    content = urlopen(req)
+    daily_transactions = pd.read_csv(content)
+
+    #daily_transactions = pd.read_csv('raw_data/Daily Transactions_7.18.22.csv')
     daily_transactions = daily_transactions.rename(columns={'Date(UTC)': 'datetime', 'UnixTimeStamp': 'timestamp', 'Value': 'daily transactions'})
     daily_transactions.drop(columns='timestamp', inplace=True)
     daily_transactions['datetime']=daily_transactions['datetime'].astype('datetime64')
@@ -167,9 +177,11 @@ def data_merged(df_crypto=None, df_NFT=None, df_tvl=None, df_stocks=None, daily_
     '''
     # data = pd.DataFrame()
 
-
-    data = pd.merge(df_crypto, df_NFT, how='left', on='datetime')
+    #WITH df_NFT UNCOMMENT THE LINES AFTER
+    data = pd.merge(df_NFT, df_crypto, how='left', on='datetime')
     data = pd.merge(data, df_tvl, how='left', on='datetime')
+    #WITH df_NFT COMMENT THE LINE AFTER
+    #data = pd.merge(df_crypto, df_tvl, how='left', on='datetime')
     data = pd.merge(data, df_stocks, how='left', on='datetime')
     data = pd.merge(data, daily_transactions, how='left', on='datetime')
 
@@ -182,6 +194,20 @@ def adapting_data(data=None):
     '''
     converting_USD_in_ETH
     '''
+    #MTG:  interpolated eth and NFt sales
+    features_to_interpolate = (['000001.SS',
+                                '^GSPC',
+                                '^IXIC',
+                                '^N100',
+                                '^NDX',
+                                'twitter_followers',
+                                'eth_NFT_sales',
+                                'eth_NFT_buyers',
+                                'total_NFT_sales',
+                                'total_NFT_buyers'])
+    for feature in features_to_interpolate:
+        data[feature] = data[feature].interpolate()
+
     data["volume_ETH"] = data["volume_usd"]/data["price_usd"]
     data["daily_trading_volume_ETH"] = data["daily_trading_volume_usd"]/data["price_usd"]
     data["eth_NFT_sales_ETH"] = data["eth_NFT_sales"]/data["price_usd"]
@@ -214,6 +240,7 @@ def load_data():
 
     # Final DataFrame with all the data from different sources
     df = adapting_data(data=merged_data)
+    df.to_csv('raw_data/data_advanced_v2_fromgetdata.csv')
     return df
 
 
