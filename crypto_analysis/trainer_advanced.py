@@ -44,42 +44,22 @@ class Trainer():
         # days of X_test
         self.memory = 5
 
-        # Log the memory lenght decided
-        self.mlflow_log_param("memory", self.memory)
-
         # functions parameters:
         self.train_splits = 10000
         self.train_time_max = self.memory
 
-        self.rnn_layer1 = 150
-        self.dense_layer1 = 50
+        self.rnn_layer1 = 300
+        self.dense_layer1 = 100
         self.dense_layer2 = 20
-        self.dense_output = 1               #OK 1
-        self.compile_optimizer = 'adam'     #OK adam
-        self.compile_loss = 'mse'           #OK mse
-        self.compile_learning_rate = 0.0001 #0.00001 OK but slow improvement for each bach
-        self.es_patience = 100              #OK 100
-        self.fit_epochs = 1000              #OK 3000 - 5000
-        self.fit_bach_size = 16             #OK 16 32
-        self.fit_validation_split = 0.3     #OK 0.3
+        self.dense_output = 1                #OK 1
+        self.compile_optimizer = 'adam'      #OK adam
+        self.compile_loss = 'mse'            #OK mse
+        self.compile_learning_rate = 0.0001  #0.00001 OK but slow improvement for each bach
+        self.es_patience = 100               #OK 100
+        self.fit_epochs = 1000               #OK 3000 - 5000
+        self.fit_bach_size = 8               #OK 16 32
+        self.fit_validation_split = 0.3      #OK 0.3
 
-        # MlFlow parameters log
-        self.mlflow_log_param("extract_xy_tr_te_train_splits", self.train_splits)
-        self.mlflow_log_param("padding", f'no padding, {self.memory} days')
-
-        self.mlflow_log_param("rnn_layer1", self.rnn_layer1)
-        self.mlflow_log_param("dense_layer1", self.dense_layer1)
-        self.mlflow_log_param("dense_layer2", self.dense_layer2)
-        self.mlflow_log_param("dense_output", self.dense_output)
-        self.mlflow_log_param("compile_optimizer", self.compile_optimizer)
-        self.mlflow_log_param("compile_loss", self.compile_loss)
-        self.mlflow_log_param("compile_learning_rate", self.compile_learning_rate)
-        self.mlflow_log_param("es_patience", self.es_patience)
-        self.mlflow_log_param("fit_epochs", self.fit_epochs)
-        self.mlflow_log_param("fit_bach_size", self.fit_bach_size)
-        self.mlflow_log_param("fit_validation_split", self.fit_validation_split)
-        self.mlflow_log_param("Architecture",
-                              f'{self.memory} days input - {self.memory} days output - no overlapping - data_v2')
 
     def preproc_data(self):
         # Data Cleaning
@@ -101,6 +81,9 @@ class Trainer():
 
         # Extract y_test
         self.y_test = np.resize(np.array(self.data.tail(self.memory)['price_usd']), (self.memory, 1))
+
+        #Extract X_for_prediction
+        self.X_for_prediction = self.data.tail(self.memory).values
 
         # Extract X_test
         self.X_test = self.data[-self.memory*2:-self.memory].values
@@ -160,7 +143,12 @@ class Trainer():
         self.X_test_pad = pad_sequences(
             self.X_test,
             dtype='float32',
-            value=-1).reshape(1, self.memory, 43)
+            value=-1).reshape(1, self.memory, self.X_test.shape[1])
+
+        self.X_for_prediction_pad = pad_sequences(
+            self.X_test,
+            dtype='float32',
+            value=-1).reshape(1, self.memory, self.X_test.shape[1])
 
     def baseline_model(self):
         '''
@@ -193,6 +181,27 @@ class Trainer():
                     callbacks=[es],
                     verbose=1)
         joblib.dump(self.model, f'model_{date}.joblib')
+
+        # Log the memory lenght decided
+        self.mlflow_log_param("memory", self.memory)
+
+        # MlFlow parameters log
+        self.mlflow_log_param("extract_xy_tr_te_train_splits", self.train_splits)
+        self.mlflow_log_param("padding", f'no padding, {self.memory} days')
+        self.mlflow_log_param("rnn_layer1", self.rnn_layer1)
+        self.mlflow_log_param("dense_layer1", self.dense_layer1)
+        self.mlflow_log_param("dense_layer2", self.dense_layer2)
+        self.mlflow_log_param("dense_output", self.dense_output)
+        self.mlflow_log_param("compile_optimizer", self.compile_optimizer)
+        self.mlflow_log_param("compile_loss", self.compile_loss)
+        self.mlflow_log_param("compile_learning_rate", self.compile_learning_rate)
+        self.mlflow_log_param("es_patience", self.es_patience)
+        self.mlflow_log_param("fit_epochs", self.fit_epochs)
+        self.mlflow_log_param("fit_bach_size", self.fit_bach_size)
+        self.mlflow_log_param("fit_validation_split", self.fit_validation_split)
+        self.mlflow_log_param("Architecture",
+                              f'{self.memory} days input - {self.memory} days output - no overlapping - data_v2')
+        self.mlflow_log_param("model_name", f'model_{date}.joblib')
 
     def plot_history(self, title='', axs=None, exp_name=""):
         '''
@@ -263,6 +272,15 @@ class Trainer():
         ax3.legend()
         return ax3
 
+    def get_prediction(self):
+        '''
+        function to retrive predicted data from the model
+        '''
+        self.model_a = joblib.load('model.joblib')
+        self.prediction = np.array(self.model_a.predict(self.X_for_prediction_pad))[0,0:3]
+        self.prediction = self.target_scaler.inverse_transform(self.prediction)
+        return self.prediction
+
     # PARAMETERS FOR GCP BASEMODEL UPLOAD
 
     def upload_model_to_gcp(self):
@@ -317,3 +335,4 @@ if __name__ == '__main__':
     trainer.baseline_model()
     trainer.pred_3d_price()
     trainer.upload_model_to_gcp()
+    #trainer.get_prediction()
