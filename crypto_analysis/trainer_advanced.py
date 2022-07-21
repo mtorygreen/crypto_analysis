@@ -42,21 +42,21 @@ class Trainer():
         self.experiment_name = EXPERIMENT_NAME
 
         # days of X_test
-        self.memory = 5
+        self.memory = 3
 
         # functions parameters:
-        self.train_splits = 10000
+        self.train_splits = 20000
         self.train_time_max = self.memory
 
-        self.rnn_layer1 = 500
+        self.rnn_layer1 = 300
         self.dense_layer1 = 100
         self.dense_layer2 = 20
         self.dense_output = 1                #OK 1
         self.compile_optimizer = 'adam'      #OK adam
         self.compile_loss = 'mse'            #OK mse
         self.compile_learning_rate = 0.0001  #0.00001 OK but slow improvement for each bach
-        self.es_patience = 100               #OK 100
-        self.fit_epochs = 500                #OK 3000 - 5000
+        self.es_patience = 400               #OK 100
+        self.fit_epochs = 1500               #OK 3000 - 5000
         self.fit_bach_size = 8               #OK 16 32
         self.fit_validation_split = 0.3      #OK 0.3
 
@@ -91,12 +91,38 @@ class Trainer():
         # Remove X_test and y_test from Train Data
         self.data = self.data[:-self.memory*2]
 
+        # Split data into X_train and X_val
+        self.pre_X_train = self.data[:-self.memory*10]
+        self.pre_X_val = self.data[-self.memory*10:]
+
     def subsample_sequence(self, length):
         '''
         function that return a random slice of features and targets
         len(X) = lenght and len(y) = 3
         '''
         last_possible = self.data.shape[0] - self.memory*2
+        random_start = np.random.randint(0, last_possible)
+        X = np.array(self.data.iloc[random_start: random_start+self.memory])
+        y = np.array(self.data.iloc[random_start+self.memory:random_start+self.memory*2]['price_usd'])
+        return X, y
+
+    def subsample_sequence_train(self, length):
+        '''
+        function that return a random slice of features and targets
+        len(X) = lenght and len(y) = 3
+        '''
+        last_possible = self.pre_X_train.shape[0] - self.memory*2
+        random_start = np.random.randint(0, last_possible)
+        X = np.array(self.data.iloc[random_start: random_start+self.memory])
+        y = np.array(self.data.iloc[random_start+self.memory:random_start+self.memory*2]['price_usd'])
+        return X, y
+
+    def subsample_sequence_val(self, length):
+        '''
+        function that return a random slice of features and targets
+        len(X) = lenght and len(y) = 3
+        '''
+        last_possible = self.pre_X_val.shape[0] - self.memory*2
         random_start = np.random.randint(0, last_possible)
         X = np.array(self.data.iloc[random_start: random_start+self.memory])
         y = np.array(self.data.iloc[random_start+self.memory:random_start+self.memory*2]['price_usd'])
@@ -114,6 +140,30 @@ class Trainer():
             y.append(yi)
         return X, y
 
+    def get_X_y_train(self, length_of_observations):
+        '''
+        function that returns a list of random slices of features and targets
+        len(X[0]) = lenght and len(y[0]) = 3
+        '''
+        X, y = [], []
+        for length in length_of_observations:
+            xi, yi = self.subsample_sequence_train(length)
+            X.append(xi)
+            y.append(yi)
+        return X, y
+
+    def get_X_y_val(self, length_of_observations):
+        '''
+        function that returns a list of random slices of features and targets
+        len(X[0]) = lenght and len(y[0]) = 3
+        '''
+        X, y = [], []
+        for length in length_of_observations:
+            xi, yi = self.subsample_sequence_val(length)
+            X.append(xi)
+            y.append(yi)
+        return X, y
+
     def extract_xy_tr_te(self):
         '''
         function returns a serie of train and test data
@@ -125,11 +175,23 @@ class Trainer():
         length_of_observations = np.array([self.memory]*self.train_splits)
         self.X_train, self.y_train = self.get_X_y(length_of_observations)
 
+    def extract_xy_tr_val(self):
+        '''
+        function returns a serie of train and test data
+        train splits is the number of selections of our dataset
+        train_time_min is the minimum number of days that are randomly choosen by the get_X_y function
+        train_time_max is the maximum number of days that are randomly choosen by the get_X_y function
+        '''
+        length_of_observations = np.array([self.memory]*self.train_splits)
+        self.X_train, self.y_train = self.get_X_y_train(length_of_observations)
+        self.X_val, self.y_val = self.get_X_y_val(length_of_observations)
+
     def padding_seq(self):
         '''
         function that return the padded version of the train dataset
         to uniform the size of the model imput
         '''
+        # Training dataset
         self.X_train_pad = pad_sequences(
             self.X_train,
             dtype='float32',
@@ -140,13 +202,26 @@ class Trainer():
             value=-1).reshape(self.train_splits,
                               self.memory,
                               1)
+        # Validation dataset
+        self.X_val_pad = pad_sequences(
+            self.X_train,
+            dtype='float32',
+            value=-1)
+        self.y_val_pad = pad_sequences(
+            self.y_train,
+            dtype='float32',
+            value=-1).reshape(self.train_splits,
+                              self.memory,
+                              1)
+
+        # Test dataset
         self.X_test_pad = pad_sequences(
             self.X_test,
             dtype='float32',
             value=-1).reshape(1, self.memory, self.X_test.shape[1])
 
         self.X_for_prediction_pad = pad_sequences(
-            self.X_test,
+            self.X_for_prediction,
             dtype='float32',
             value=-1).reshape(1, self.memory, self.X_test.shape[1])
 
@@ -177,7 +252,8 @@ class Trainer():
                     self.y_train_pad,
                     epochs=self.fit_epochs,
                     batch_size=self.fit_bach_size,
-                    validation_split=self.fit_validation_split,
+                    #validation_split=self.fit_validation_split,
+                    validation_data=(self.X_val_pad, self.y_val_pad),
                     callbacks=[es],
                     verbose=1)
         joblib.dump(self.model, f'model_{date}.joblib')
@@ -199,7 +275,7 @@ class Trainer():
         self.mlflow_log_param("es_patience", self.es_patience)
         self.mlflow_log_param("fit_epochs", self.fit_epochs)
         self.mlflow_log_param("fit_bach_size", self.fit_bach_size)
-        self.mlflow_log_param("fit_validation_split", self.fit_validation_split)
+        self.mlflow_log_param("fit_validation_split", f'{self.memory * 10} days of validation')
         self.mlflow_log_param("Architecture",
                               f'{self.memory} days input - {self.memory} days output - no overlapping - data_v2')
         self.mlflow_log_param("model_name", f'model_{date}.joblib')
@@ -333,11 +409,13 @@ if __name__ == '__main__':
     data = pd.read_csv('/tmp/data.csv') # TO RUN ON COLAB
 
     # TO RUN LOCALLY COMMENT ALL THE CODE BEHIND end DECOMMENT THE ROW BELOW
-    # data = pd.read_csv('raw_data/data_advanced_v2.csv')
+    #data = pd.read_csv('raw_data/data_advanced_v2.csv')
 
     trainer = Trainer(data)
     trainer.preproc_data()
-    trainer.extract_xy_tr_te()
+    # To came back to val split uncomment below and in the fitting part
+    #trainer.extract_xy_tr_tr()
+    trainer.extract_xy_tr_val()
     trainer.padding_seq()
     trainer.baseline_model()
     trainer.pred_3d_price()

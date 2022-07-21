@@ -99,12 +99,12 @@ gcp_submit_training:
 		--runtime-version=${RUNTIME_VERSION} \
 		--region ${REGION} \
 		--stream-logs
+# PUT IT AFTER REGION TO USE TPU
+#--scale-tier=BASIC_TPU \
 
 run_locally:
 	@python -m ${PACKAGE_NAME}.${FILENAME}
 
-
-#--scale-tier=BASIC_TPU \
 
 # ----------------------------------
 #         HEROKU COMMANDS
