@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -6,7 +5,7 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras import Sequential, layers
 from tensorflow.keras.layers.experimental.preprocessing import Normalization
 from tensorflow.keras.optimizers import RMSprop, Adam
-from tensorflow.keras.metrics import MAPE, mse
+from tensorflow.keras.metrics import MAPE, mse, RootMeanSquaredError
 from tensorflow.keras import callbacks
 from tensorflow.keras.backend import clear_session
 from google.cloud import storage
@@ -56,10 +55,9 @@ class Trainer():
         self.compile_loss = 'mse'            #OK mse
         self.compile_learning_rate = 0.0001  #0.00001 OK but slow improvement for each bach
         self.es_patience = 400               #OK 100
-        self.fit_epochs = 1500               #OK 3000 - 5000
+        self.fit_epochs = 100                #OK 3000 - 5000
         self.fit_bach_size = 8               #OK 16 32
         self.fit_validation_split = 0.3      #OK 0.3
-
 
     def preproc_data(self):
         # Data Cleaning
@@ -113,8 +111,8 @@ class Trainer():
         '''
         last_possible = self.pre_X_train.shape[0] - self.memory*2
         random_start = np.random.randint(0, last_possible)
-        X = np.array(self.data.iloc[random_start: random_start+self.memory])
-        y = np.array(self.data.iloc[random_start+self.memory:random_start+self.memory*2]['price_usd'])
+        X = np.array(self.pre_X_train.iloc[random_start: random_start+self.memory])
+        y = np.array(self.pre_X_train.iloc[random_start+self.memory:random_start+self.memory*2]['price_usd'])
         return X, y
 
     def subsample_sequence_val(self, length):
@@ -124,8 +122,8 @@ class Trainer():
         '''
         last_possible = self.pre_X_val.shape[0] - self.memory*2
         random_start = np.random.randint(0, last_possible)
-        X = np.array(self.data.iloc[random_start: random_start+self.memory])
-        y = np.array(self.data.iloc[random_start+self.memory:random_start+self.memory*2]['price_usd'])
+        X = np.array(self.pre_X_val.iloc[random_start: random_start+self.memory])
+        y = np.array(self.pre_X_val.iloc[random_start+self.memory:random_start+self.memory*2]['price_usd'])
         return X, y
 
     def get_X_y(self, length_of_observations):
@@ -164,16 +162,6 @@ class Trainer():
             y.append(yi)
         return X, y
 
-    def extract_xy_tr_te(self):
-        '''
-        function returns a serie of train and test data
-        train splits is the number of selections of our dataset
-        train_time_min is the minimum number of days that are randomly choosen by the get_X_y function
-        train_time_max is the maximum number of days that are randomly choosen by the get_X_y function
-        '''
-        #length_of_observations = np.random.randint(self.train_time_min, self.train_time_max, self.train_splits)
-        length_of_observations = np.array([self.memory]*self.train_splits)
-        self.X_train, self.y_train = self.get_X_y(length_of_observations)
 
     def extract_xy_tr_val(self):
         '''
@@ -244,7 +232,7 @@ class Trainer():
         self.model.add(layers.Dense(self.dense_layer1, activation='relu')) # GS N UNITS
         self.model.add(layers.Dense(self.dense_layer2, activation='relu'))
         self.model.add(layers.Dense(self.dense_output, activation='linear'))
-        self.model.compile(loss='mse', optimizer=RMSprop(learning_rate=self.compile_learning_rate), metrics=mse)
+        self.model.compile(loss='mse', optimizer=RMSprop(learning_rate=self.compile_learning_rate), metrics=[RootMeanSquaredError()])
 
         es = callbacks.EarlyStopping(patience=self.es_patience, restore_best_weights=True)
 
@@ -257,7 +245,7 @@ class Trainer():
                     callbacks=[es],
                     verbose=1)
         joblib.dump(self.model, f'model_{date}.joblib')
-        joblib.dump(self.history, f'/tmp/history_{date}.joblib')
+        # joblib.dump(self.history, f'history_{date}.joblib')
 
         # Log the memory lenght decided
         self.mlflow_log_param("memory", self.memory)
@@ -279,6 +267,7 @@ class Trainer():
         self.mlflow_log_param("Architecture",
                               f'{self.memory} days input - {self.memory} days output - no overlapping - data_v2')
         self.mlflow_log_param("model_name", f'model_{date}.joblib')
+        self.mlflow_log_param("n. of features", f'{self.X_train_pad.shape[2]}')
 
     def plot_history(self, title='', axs=None, exp_name=""):
         '''
@@ -325,7 +314,8 @@ class Trainer():
         self.rmse_3d = (((self.real_y_test_3d - self.real_y_pred_3d)**2).mean())**0.5
         # Create  a new metric based on the last val_metric of the fit in dollar error
         self.val_rmse = self.target_scaler.inverse_transform(np.reshape(
-            self.history.history['val_mean_squared_error'][-1]**0.5, (1, -1)))[0,0]
+            #self.history.history['val_mean_squared_error'][-1]**0.5, (1, -1)))[0,0]
+            self.history.history['val_root_mean_squared_error'][-1], (1, -1)))[0,0]
         # MlFlow logging
         self.mlflow_log_metric('rmse', self.rmse)
         self.mlflow_log_metric('val_rmse', self.val_rmse)
@@ -356,6 +346,7 @@ class Trainer():
         self.model_a = joblib.load('model.joblib')
         self.prediction = np.array(self.model_a.predict(self.X_for_prediction_pad))[0,0:3]
         self.prediction = self.target_scaler.inverse_transform(self.prediction)
+        self.real_y_test = self.target_scaler.inverse_transform(self.y_test)
         return self.prediction
 
     # PARAMETERS FOR GCP BASEMODEL UPLOAD
@@ -369,11 +360,11 @@ class Trainer():
         blob = bucket.blob(STORAGE_LOCATION)
         blob.upload_from_filename(f'model_{date}.joblib')
         print('model saved on gcp storage')
-        client_hst = storage.Client()
-        bucket_hst = client_hst.bucket(BUCKET_NAME)
-        blob_hst = bucket_hst.blob(STORAGE_LOCATION)
-        blob_hst.upload_from_filename(f'/tmp/history_{date}.joblib')
-        print('history saved on gcp storage')
+        # client_hst = storage.Client()
+        # bucket_hst = client_hst.bucket(BUCKET_NAME)
+        # blob_hst = bucket_hst.blob(STORAGE_LOCATION)
+        # blob_hst.upload_from_filename(f'/tmp/history_{date}.joblib')
+        # print('history saved on gcp storage')
 
     @memoized_property
     def mlflow_client(self):
@@ -404,17 +395,15 @@ if __name__ == '__main__':
 
     client = storage.Client()
     bucket = client.get_bucket(BUCKET_NAME)
-    blob = bucket.get_blob("data/data_advanced_v2.csv")
+    blob = bucket.get_blob("data/data_26.csv")
     blob.download_to_filename("/tmp/data.csv")
     data = pd.read_csv('/tmp/data.csv') # TO RUN ON COLAB
 
     # TO RUN LOCALLY COMMENT ALL THE CODE BEHIND end DECOMMENT THE ROW BELOW
-    #data = pd.read_csv('raw_data/data_advanced_v2.csv')
+    #data = pd.read_csv('raw_data/data_26.csv')
 
     trainer = Trainer(data)
     trainer.preproc_data()
-    # To came back to val split uncomment below and in the fitting part
-    #trainer.extract_xy_tr_tr()
     trainer.extract_xy_tr_val()
     trainer.padding_seq()
     trainer.baseline_model()
